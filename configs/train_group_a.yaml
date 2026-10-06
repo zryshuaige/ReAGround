@@ -1,0 +1,14 @@
+# Group A: direct point output (no region anchor). Identical hyperparameters,
+# only the data format differs from the full method (group D).
+model: models/Qwen2.5-VL-3B-Instruct
+data: data/outputs/train_direct.jsonl
+output: outputs/group_a
+
+lora: {r: 8, alpha: 16, dropout: 0.05}
+lr: 2.0e-4
+epochs: 2
+batch_size: 1
+grad_accum: 48
+num_workers: 2
+seed: 42
+lambdas: {think: 0.0, region: 1.0, point: 1.0}

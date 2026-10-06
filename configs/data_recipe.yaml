@@ -1,0 +1,7 @@
+# Data recipe: 8K platform-balanced subset of the ZonUI-3B source corpora.
+corpus_dir: corpus/raw
+total: 8000            # training entries (each becomes 2 sequences in twostage fmt)
+val_size: 250          # held out for lambda selection, never touches ScreenSpot
+seed: 42
+per_image_cap: 30      # max entries contributed by one screenshot (desktop has only
+                       # ~100 unique screenshots; cap prevents memorizing them)

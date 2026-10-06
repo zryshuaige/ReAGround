@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+models/
+benchmarks/
+corpus/
+outputs/
+data/outputs/
+*.tmp
+.DS_Store
