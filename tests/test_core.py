@@ -44,14 +44,14 @@ def test_compute_loss():
         if labels[0, t + 1] != -100:
             logits[0, t, labels[0, t + 1]] = 5.0
     sections = torch.zeros((1, L), dtype=torch.long)
-    sections[0, 3:6], sections[0, 6:9], sections[0, 9:11], sections[0, 11] = 1, 2, 3, 4
+    sections[0, 3:6], sections[0, 6:9], sections[0, 9:12] = 2, 3, 4
 
     class FakeModel(torch.nn.Module):
         def forward(self, **kw):
             return types.SimpleNamespace(logits=logits)
 
     trainer = SectionalTrainer.__new__(SectionalTrainer)
-    trainer.section_weights = {1: 0.0, 2: 1.0, 3: 1.0, 4: 1.0}
+    trainer.section_weights = {2: 1.0, 3: 1.0, 4: 1.0}
     loss = trainer.compute_loss(FakeModel(), {
         "input_ids": torch.zeros((1, L), dtype=torch.long),
         "labels": labels, "loss_sections": sections,
@@ -60,7 +60,7 @@ def test_compute_loss():
                          reduction="none") * (labels[0, 1:] != -100)
     sec = sections[0, 1:]
     exp = sum(w * ce[sec == sid].sum() / (sec == sid).sum()
-              for sid, w in [(1, 0.0), (2, 1.0), (3, 1.0), (4, 1.0)])
+              for sid, w in [(2, 1.0), (3, 1.0), (4, 1.0)])
     assert abs(loss.item() - float(exp)) < 1e-5
     print("compute_loss: OK (matches hand-computed section-weighted mean)")
 
@@ -69,8 +69,7 @@ def test_tokenize_and_builders(model_path, sample_image=None):
     from transformers import AutoProcessor
     from train.dataset import tokenize_target, _spans
     tok = AutoProcessor.from_pretrained(model_path).tokenizer
-    for target in ['<think>abc</think><region>top toolbar</region>'
-                   '<area>[0.31, 0.00, 0.58, 0.09]</area>',
+    for target in ['<region>top toolbar</region><area>[0.31, 0.00, 0.58, 0.09]</area>',
                    '<point>(1842, 47)</point>', '(1842, 47)']:
         ids, secs = tokenize_target(tok, target)
         assert tok.decode(ids) == target + "<|im_end|>\n"

@@ -25,18 +25,17 @@ per training run).
 | Problem on high-resolution GUIs | ReAGround's answer |
 |---|---|
 | Tiny targets get visually diluted after the VLM's image resize ("can't see") | **Zoom-in**: anchor a coarse area, crop and let `smart_resize` upscale it, then point |
-| Weak GUI structural knowledge ("can't find the right place") | **Region CoT**: the model first judges the functional area (`<think>/<region>/<area>`), then points inside it (`<point>`) |
+| Weak GUI structural knowledge ("can't find the right place") | **Region anchor**: the model first judges the functional area (`<region>/<area>`), then points inside it (`<point>`) |
 
 Training is plain SFT on a new output protocol — no architecture change.
 Supervision falls only on verifiable facts (region name and area box are
 rule-derived from the GT box; the point is the GT center):
 
 ```
-L = 0 * L_think + 1 * L_region + 1 * L_point (+ 1 * L_format)
+L = 1 * L_region + 1 * L_point (+ 1 * L_format)
 ```
 
 where each L is the per-section mean cross-entropy (see `train/dataset.py`).
-The think segment is free reasoning and excluded from the loss.
 
 ## Controlled experiment design
 

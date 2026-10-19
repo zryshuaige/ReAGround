@@ -11,4 +11,4 @@ batch_size: 1
 grad_accum: 48
 num_workers: 2
 seed: 42
-lambdas: {think: 0.0, region: 1.0, point: 1.0}
+lambdas: {region: 1.0, point: 1.0}

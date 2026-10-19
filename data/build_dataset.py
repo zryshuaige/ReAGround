@@ -180,12 +180,10 @@ def build_sequences(entry, sid):
     rw, rh = resized_dims(crop[2] - crop[0], crop[3] - crop[1])
     px = (gcx - crop[0]) / (crop[2] - crop[0]) * rw
     py = (gcy - crop[1]) / (crop[3] - crop[1]) * rh
-    think = "The target of \"%s\" is typically located in the %s." % (
-        entry["instruction"], region)
     r1 = {"id": sid + "-r1", "mode": "round1", "image": entry["image"],
           "instruction": entry["instruction"],
-          "target": "<think>%s</think><region>%s</region><area>%s</area>"
-                    % (think, region, json.dumps(area))}
+          "target": "<region>%s</region><area>%s</area>"
+                    % (region, json.dumps(area))}
     r2 = {"id": sid + "-r2", "mode": "round2", "image": entry["image"],
           "crop": list(crop), "instruction": entry["instruction"],
           "target": "<point>(%d, %d)</point>" % (round(px), round(py))}

@@ -16,9 +16,8 @@ grad_accum: 48
 num_workers: 2
 seed: 42
 
-# Section weights: L = think*L_think + region*L_region + point*L_point (+ format, fixed 1).
-# Default (0,1,1): supervise only verifiable facts; ablate region to 0.5/0.3 later.
+# Section weights: L = region*L_region + point*L_point (+ format, fixed 1).
+# Default (1,1): supervise only verifiable facts; ablate region to 0.5/0.3 later.
 lambdas:
-  think: 0.0
   region: 1.0
   point: 1.0

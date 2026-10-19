@@ -32,7 +32,7 @@ PROMPT_ROUND2 = ("Within this cropped region, give the exact click point "
 PROMPTS = {"direct": PROMPT_DIRECT, "round1": PROMPT_ROUND1, "round2": PROMPT_ROUND2}
 
 # Output tags of the two-stage protocol.
-TAGS = {"think": ("<think>", "</think>"), "region": ("<region>", "</region>"),
+TAGS = {"region": ("<region>", "</region>"),
         "area": ("<area>", "</area>"), "point": ("<point>", "</point>")}
 
 

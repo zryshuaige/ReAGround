@@ -75,8 +75,7 @@ def main():
         ds.records = ds.records[:8]
     print("training sequences: %d" % len(ds))
 
-    weights = {1: cfg["lambdas"]["think"], 2: cfg["lambdas"]["region"],
-               3: cfg["lambdas"]["point"], 4: 1.0}
+    weights = {2: cfg["lambdas"]["region"], 3: cfg["lambdas"]["point"], 4: 1.0}
     targs = TrainingArguments(
         output_dir=cfg["output"],
         per_device_train_batch_size=cfg["batch_size"],

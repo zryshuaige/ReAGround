@@ -3,15 +3,14 @@
 
 Section ids (loss_sections, aligned with labels):
   0 = prompt / padding            (never supervised)
-  1 = <think> content             (weight lambda_think, default 0: free reasoning)
   2 = <region>..</area> block     (weight lambda_region)
   3 = <point>..</point> or direct "(x, y)"  (weight lambda_point)
-  4 = format tokens: <think></think> tags, <|im_end|>  (weight always 1; the model
-      must learn the protocol tokens even when think content is unsupervised)
+  4 = format tokens: <region></region> tags, <|im_end|>  (weight always 1; the model
+      must learn the protocol tokens)
 
 Loss (per micro-batch, per section mean then weighted sum):
-  L = lambda_think * CE_1 + lambda_region * CE_2 + lambda_point * CE_3 + 1.0 * CE_4
-Per-section averaging prevents the long think segment from dominating.
+  L = lambda_region * CE_2 + lambda_point * CE_3 + 1.0 * CE_4
+Per-section averaging prevents one long segment from dominating.
 
 Char spans are mapped to tokens via the fast tokenizer's offset mapping, so
 segment boundaries can never drift from the tokenization.
@@ -29,14 +28,9 @@ from protocol import build_messages, resized_dims
 
 def _spans(full):
     """Char spans (start, end, section_id) covering a target string exactly.
-    Section ids: 1=think content, 2=region+area, 3=point, 4=format tokens."""
+    Section ids: 2=region+area, 3=point, 4=format tokens."""
     spans = []
     pos = 0
-    if full.startswith("<think>"):
-        close = full.index("</think>")
-        spans += [(0, len("<think>"), 4), (len("<think>"), close, 1),
-                  (close, close + len("</think>"), 4)]
-        pos = close + len("</think>")
     if full.startswith("<region>", pos):
         pos_end = full.index("</area>", pos) + len("</area>")
         spans.append((pos, pos_end, 2))
