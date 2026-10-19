@@ -1,0 +1,7 @@
+showui_web              0 entries
+showui_desktop       7496 entries
+   {"image": "corpus/processed/images/showui_desktop/desktop_train-00000-of-00034.parquet_0.png", "instruction": "message_ash", "bbox": [19.000000432133675, 185.00000461935997, 617.0000195503235, 314.00000005960464], "ui_type": "", "platform": "desktop"}
+   {"image": "corpus/processed/images/showui_desktop/desktop_train-00000-of-00034.parquet_1.png", "instruction": "A blue chat card with the word 'Sure!' in white text.", "bbox": [19.000000432133675, 185.00000461935997, 617.0000195503235, 314.00000005960464], "ui_type": "", "platform": "desktop"}
+   {"image": "corpus/processed/images/showui_desktop/desktop_train-00000-of-00034.parquet_2.png", "instruction": "The element is at the bottom of the conversation list.", "bbox": [19.000000432133675, 185.00000461935997, 617.0000195503235, 314.00000005960464], "ui_type": "", "platform": "desktop"}
+skip uground (not downloaded)
+skip amex (not downloaded)

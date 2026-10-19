@@ -1,0 +1,9 @@
+You are attempting to use Flash Attention 2.0 with a model not initialized on GPU. Make sure to move the model to GPU after initializing it on CPU with `model.to('cuda')`.
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:00<00:00,  7.57it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00,  9.02it/s]
+Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.48, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
+Detected kernel version 5.4.0, which is below the recommended minimum of 5.5.0; this can cause the process to hang. It is recommended to upgrade the kernel to the minimum version or higher.
+No label_names provided for model class `PeftModel`. Since `PeftModel` hides base models input arguments, if label_names is not given, label_names can't be set automatically within `Trainer`. Note that empty label_names list will be used instead.
+trainable params: 18,576,384 || all params: 3,773,199,360 || trainable%: 0.4923
+training sequences: 8
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:12<00:12, 12.88s/it]100%|██████████| 2/2 [00:24<00:00, 12.02s/it]                                             100%|██████████| 2/2 [00:26<00:00, 12.02s/it]100%|██████████| 2/2 [00:26<00:00, 13.03s/it]
+{'train_runtime': 26.0657, 'train_samples_per_second': 3.683, 'train_steps_per_second': 0.077, 'train_loss': 0.6523333787918091, 'epoch': 2.0}

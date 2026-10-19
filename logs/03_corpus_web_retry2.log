@@ -1,0 +1,3 @@
+Returning existing local_dir `corpus/raw/showui_web` as remote repo cannot be accessed in `snapshot_download` ((MaxRetryError("HTTPSConnectionPool(host='hf-mirror.com', port=443): Max retries exceeded with url: /api/datasets/showlab/ShowUI-web/revision/main (Caused by ConnectTimeoutError(<urllib3.connection.HTTPSConnection object at 0x7f627a242260>, 'Connection to hf-mirror.com timed out. (connect timeout=None)'))"), '(Request ID: b039d464-cc34-4ec0-8d01-10b608a91812)')).
+== showlab/ShowUI-web -> corpus/raw/showui_web
+NOTE: extract ShowUI-web images with: tar -xzf corpus/raw/showui_web/images.tar.gz -C corpus/raw/showui_web/

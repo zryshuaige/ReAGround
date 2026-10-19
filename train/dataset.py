@@ -98,7 +98,7 @@ class GroundingSFT(Dataset):
             "loss_sections": torch.cat([torch.zeros_like(prompt_ids), tgt_secs]),
             "attention_mask": torch.ones(len(prompt_ids) + len(tgt_ids),
                                          dtype=torch.long),
-            "pixel_values": enc["pixel_values"][0],
+            "pixel_values": enc["pixel_values"],  # already flat [num_patches, dim]; no batch dim
             "image_grid_thw": enc["image_grid_thw"][0],
         }
 

@@ -1,0 +1,5 @@
+samples: 1581
+{'id': 'android_studio_macos_0', 'size': (3840, 2160), 'bbox': [1774.0, 1586.0, 2113.0, 1618.0], 'ui_type': 'icon', 'platform': 'macos', 'instruction': 'modify the highlights of the photo with in the virtual andro'}
+{'id': 'android_studio_macos_1', 'size': (3840, 2160), 'bbox': [2054.0, 1675.0, 2141.0, 1739.0], 'ui_type': 'text', 'platform': 'macos', 'instruction': 'open contacts of the android machine'}
+{'id': 'android_studio_macos_2', 'size': (3840, 2160), 'bbox': [2073.0, 151.0, 2092.0, 176.0], 'ui_type': 'text', 'platform': 'macos', 'instruction': 'attach debugger to android process in android studio'}
+missing images: 0

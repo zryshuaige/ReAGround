@@ -1,0 +1,8 @@
+showui_web         599186 entries
+showui_desktop       7496 entries
+skip uground (not downloaded)
+skip amex (not downloaded)
+  platform desktop  quota 4125, picked 4125
+  platform web      quota 4125, picked 4125
+sampled: 8000 train + 250 val
+wrote data/outputs/train_twostage.jsonl (16000 sequences) and val.jsonl (250)

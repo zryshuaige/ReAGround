@@ -1,0 +1,73 @@
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:00<00:00,  2.07it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.96it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:01<00:00,  1.97it/s]
+Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.48, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
+/root/miniforge3/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:629: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `1e-06` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+50/1581 done, running acc 0.0%
+100/1581 done, running acc 0.0%
+150/1581 done, running acc 0.0%
+200/1581 done, running acc 0.0%
+250/1581 done, running acc 0.4%
+300/1581 done, running acc 1.3%
+350/1581 done, running acc 1.1%
+400/1581 done, running acc 1.0%
+450/1581 done, running acc 0.9%
+500/1581 done, running acc 0.8%
+550/1581 done, running acc 0.7%
+600/1581 done, running acc 0.8%
+650/1581 done, running acc 1.1%
+700/1581 done, running acc 1.0%
+750/1581 done, running acc 0.9%
+800/1581 done, running acc 0.9%
+850/1581 done, running acc 0.9%
+900/1581 done, running acc 1.0%
+950/1581 done, running acc 0.9%
+1000/1581 done, running acc 0.9%
+1050/1581 done, running acc 0.9%
+1100/1581 done, running acc 0.9%
+1150/1581 done, running acc 0.9%
+1200/1581 done, running acc 0.9%
+1250/1581 done, running acc 1.0%
+1300/1581 done, running acc 1.0%
+1350/1581 done, running acc 1.2%
+1400/1581 done, running acc 1.3%
+1450/1581 done, running acc 1.2%
+1500/1581 done, running acc 1.3%
+1550/1581 done, running acc 1.5%
+
+==== summary ====
+overall: 23/1581 (1.5%)
+-- by ui_type --
+  icon                   1/604 (0.2%)
+  text                   22/977 (2.3%)
+-- by platform --
+  linux                  0/50 (0.0%)
+  macos                  11/604 (1.8%)
+  windows                12/927 (1.3%)
+-- by app --
+  android_studio         0/80 (0.0%)
+  autocad                0/34 (0.0%)
+  blender                0/71 (0.0%)
+  davinci                0/44 (0.0%)
+  eviews                 4/50 (8.0%)
+  excel                  0/64 (0.0%)
+  fruitloops             0/57 (0.0%)
+  illustrator            0/31 (0.0%)
+  inventor               0/70 (0.0%)
+  linux_common           0/50 (0.0%)
+  macos_common           3/65 (4.6%)
+  matlab                 0/93 (0.0%)
+  origin                 0/62 (0.0%)
+  photoshop              0/51 (0.0%)
+  powerpoint             2/82 (2.4%)
+  premiere               0/52 (0.0%)
+  pycharm                0/78 (0.0%)
+  quartus                1/45 (2.2%)
+  solidworks             0/77 (0.0%)
+  stata                  1/49 (2.0%)
+  unreal_engine          1/35 (2.9%)
+  vivado                 2/80 (2.5%)
+  vmware                 2/41 (4.9%)
+  vscode                 2/55 (3.6%)
+  windows_common         1/81 (1.2%)
+  word                   4/84 (4.8%)
+parse failures (counted as miss): 1000

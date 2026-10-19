@@ -59,7 +59,7 @@ def main():
 
     torch.manual_seed(cfg["seed"])
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        cfg["model"], torch_dtype=torch.bfloat16, attn_implementation="sdpa")
+        cfg["model"], torch_dtype=torch.bfloat16, attn_implementation="flash_attention_2")
     model.config.use_cache = False
     processor = AutoProcessor.from_pretrained(cfg["model"])
 
@@ -86,7 +86,8 @@ def main():
         lr_scheduler_type="cosine",
         bf16=True,
         logging_steps=5,
-        save_strategy="epoch",
+        save_strategy="steps",
+        save_steps=200,
         report_to=[],
         seed=cfg["seed"],
         remove_unused_columns=False,

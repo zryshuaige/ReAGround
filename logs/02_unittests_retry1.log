@@ -1,0 +1,4 @@
+parse: OK
+compute_loss: OK (matches hand-computed section-weighted mean)
+skip tokenizer/builder tests (set REAGROUND_MODEL to enable)
+all tests passed

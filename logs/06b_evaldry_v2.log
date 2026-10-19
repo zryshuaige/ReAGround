@@ -1,0 +1,5 @@
+samples: 1272
+{'id': 'pc_ede36f9b-1154-4f76-b7f8-c15d7d3f9b6e.png', 'size': (960, 540), 'bbox': [910.0, 77.99999999999999, 954.0, 112.0], 'ui_type': 'icon', 'platform': 'windows', 'instruction': 'close this window'}
+{'id': 'pc_5e09e8e9-7ef6-44be-ad54-aeaeac151897.png', 'size': (960, 540), 'bbox': [835.0, 0.0, 871.0, 30.0], 'ui_type': 'icon', 'platform': 'windows', 'instruction': 'minimize this window'}
+{'id': 'pc_2c6dc6ea-fd6f-4cbb-9954-2d6a68610a48.png', 'size': (1920, 1080), 'bbox': [1477.0, 450.0, 1661.0, 680.0], 'ui_type': 'text', 'platform': 'windows', 'instruction': 'view solitaire daily challenges'}
+missing images: 0

@@ -19,6 +19,8 @@ per training run).
 
 - **[2026-10]** Code release: evaluation harness, data builder, LoRA training
   with section-weighted loss, two-stage inference.
+- **[2026-10]** First controlled run finished on a single A10 (groups A and D,
+  1 epoch each); preliminary numbers below, full log in [REPORT.md](REPORT.md).
 
 ## Method
 
@@ -51,20 +53,35 @@ variable at a time:
 | D | A + region CoT + zoom (**ReAGround**) | total gain |
 | E | ZonUI-3B official weights (24K) | external reference to surpass |
 
-## Main results (TBD — experiments in progress)
+## Preliminary results (first controlled run, 2026-10)
 
-ScreenSpot-Pro / ScreenSpot-v2, point-in-bbox accuracy, split by text/icon.
+ScreenSpot point-in-bbox accuracy; per-sample outputs land in `outputs/`
+(not tracked) and the full gate-by-gate log is in [REPORT.md](REPORT.md).
 
 | Model | Pro avg | Pro text | Pro icon | v2 avg |
 |---|---|---|---|---|
-| Qwen2.5-VL-3B (base) | TBD | | | |
-| ZonUI-3B (group E) | TBD | | | |
-| Group A (8K direct SFT) | TBD | | | |
-| **ReAGround (group D)** | TBD | | | |
+| Qwen2.5-VL-3B (base, direct prompt) | 1.5% | 2.3 | 0.2 | — |
+| Group A (8K direct SFT) | 20.7% | 30.0 | 5.6 | 85.8% |
+| ReAGround (group D, grid-area labels) | 22.3% | 31.1 | 7.9 | 63.7%\* |
 
-Published references to reproduce *before* any training: ZonUI-3B ≈ 29.0% and
-base Qwen2.5-VL-3B ≈ 16.0% on ScreenSpot-Pro. Our harness must match these;
-see `scripts/eval_zonui_pro.sh`.
+\* Group D's v2 number is partial — the run was interrupted at 957/1272
+samples. Published references our harness should reproduce *before* trusting
+any trained number: ZonUI-3B ≈ 29.0% and base Qwen2.5-VL-3B ≈ 16.0% on
+ScreenSpot-Pro (see `scripts/eval_zonui_pro.sh`). Our measured base number of
+1.5% deviates mainly because the direct prompt yields prose instead of points
+on 63% of samples (weights and inference verified healthy) — the ZonUI-3B
+golden check is still pending.
+
+## Known issue / next step
+
+In this snapshot, group D's round-1 `<area>` labels are the 4×2 **grid cell**
+containing the GT center (unioned with the GT box,
+`data/build_dataset.py::area_box`) — i.e. "which of 8 blocks", deliberately
+coarse in the original plan. This deviates from the intended design, in which
+round 1 should output the *actual* GT box (normalized, 3-decimal). Group D
+will be retrained on rebuilt labels; the round-2 training-crop strategy
+(margin/jitter around the box, to avoid the degenerate "always answer the
+crop center" solution) is under evaluation. Group A is unaffected.
 
 ## Installation
 
@@ -114,6 +131,31 @@ python train/train_lora.py --config configs/train_lora.yaml --dry-run # 2-step s
 LoRA rank 8 / &alpha;=16 on attention+MLP projections, bf16, batch 1 ×
 grad-accum 48, lr 2e-4, cosine — matching ZonUI-3B's recipe. Only the adapter
 is saved.
+
+### Training details
+
+Supervision is section-weighted token cross-entropy. Each target sequence is
+split into sections by char spans, mapped to tokens via the fast tokenizer's
+offset mapping so boundaries can never drift (`train/dataset.py`):
+
+| Section id | Content | Weight |
+|---|---|---|
+| 1 | `<think>` free reasoning | 0 (unsupervised) |
+| 2 | `<region>…</area>` block | 1 |
+| 3 | `<point>…</point>` or direct `(x, y)` | 1 |
+| 4 | protocol tokens (`<think></think>` tags, `<|im_end|>`) | 1 |
+
+`L = Σ_s λ_s · mean_CE(section s)` (`train/train_lora.py::SectionalTrainer`);
+per-section averaging prevents the long think segment from dominating, and
+lambdas live in `configs/train_lora.yaml`. This is plain SFT on the output
+protocol — there is no spatial/box regression loss; "point inside bbox" is
+only the *evaluation* criterion.
+
+Full hyperparameters (identical for both groups): LoRA r 8 / &alpha; 16 /
+dropout 0.05, bf16, flash-attention-2, batch 1 × grad-accum 48, lr 2e-4 with
+cosine schedule, 1 epoch, seed 42. On our A10 (150 W cap) one step costs
+~110–135 s: group A (166 steps) ≈ 4.6 h, group D (333 steps) ≈ 10 h, plus
+~1–2 h of evaluation per benchmark.
 
 ## Evaluation
 
