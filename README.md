@@ -15,12 +15,63 @@ per training run).
 > Result tables are intentionally left as TBD until the controlled experiments
 > finish — no number in this repo is fabricated.
 
+## Current method: group A + region-only GRPO
+
+The current experiment keeps the group-A direct-point adapter and trains only the
+**inspection-region** task with GRPO. The same final adapter is called twice at
+inference:
+
+```text
+screenshot + instruction -> <bbox>[x1,y1,x2,y2]</bbox> (normalized to 0–1000)
+                         -> crop once
+                         -> A-style direct point inside the crop
+```
+
+There is no second model, no multi-candidate generation, and no new point-SFT run.
+The GRPO run uses **2,000 prompts × 4 rollouts, one epoch**. Training data are
+regenerated with the unchanged run-1 recipe and seed; ScreenSpot is never used
+for training or reward tuning.
+
+The four scalar rewards are computed only from the generated box and GT:
+
+1. valid `<bbox>` format (0.1);
+2. coverage of the 1.3× context-expanded GT (0.4 × coverage);
+3. full context coverage within the area limit (0.5);
+4. compactness within that valid range (up to 0.5).
+
+An image-sized box therefore receives at most the first two rewards, not the
+containment/compactness bonus. Invalid or non-finite coordinates receive zero.
+
+### Isolated GRPO environment (Linux, one A10 24GB)
+
+Do not install these packages into the run-1 SFT environment. vLLM 0.10.0 pins
+torch 2.7.1, while TRL 0.21.0 provides the VLM GRPO/colocate interface used by
+`train/train_grpo.py`:
+
+```bash
+bash scripts/setup_grpo.sh                 # creates .venv-grpo
+source .venv-grpo/bin/activate
+python data/build_grpo_dataset.py --samples 2000
+python train/train_grpo.py --check-only   # versions, paths, data, TRL config
+python train/train_grpo.py --dry-run      # two real updates on 8 records
+python train/train_grpo.py                # full 2K run
+bash scripts/eval_grpo.sh
+```
+
+The pinned TRL version is configured with `vllm_mode="colocate"`, four
+generations, short 64-token completions, bf16, SDPA, gradient checkpointing, and
+`beta=0` (no reference-model pass). Do not add sleep-mode flags from newer TRL
+versions. `--no-vllm` selects the slower HF rollout path. `--dry-run` never
+overwrites the final adapter.
+
 ## News
 
+- **[2026-10]** Added group-A-initialized region GRPO with layered geometric rewards,
+  an isolated TRL/vLLM environment, preflight checks, and two-call inference.
 - **[2026-10]** Code release: evaluation harness, data builder, LoRA training
   with section-weighted loss, two-stage inference.
 
-## Method
+## Legacy run-1 SFT method
 
 | Problem on high-resolution GUIs | ReAGround's answer |
 |---|---|

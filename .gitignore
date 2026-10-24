@@ -5,5 +5,6 @@ benchmarks/
 corpus/
 outputs/
 data/outputs/
+.venv-grpo/
 *.tmp
 .DS_Store

@@ -1,0 +1,16 @@
+# Separate Linux/A10 environment for TRL VLM GRPO. Do not alter the SFT environment.
+# vLLM 0.10.0 requires torch 2.7.1; TRL 0.21.0 provides the VLM GRPO interface.
+torch==2.7.1
+torchvision==0.22.1
+transformers==4.55.0
+trl==0.21.0
+vllm==0.10.0
+peft==0.17.1
+accelerate==1.10.1
+datasets==3.6.0
+numpy==1.26.4
+pandas==2.2.3
+pyarrow
+pillow
+pyyaml
+huggingface_hub

@@ -99,7 +99,7 @@ def main():
     ap.add_argument("--custom-jsonl", help="held-out set from build_dataset.py")
     ap.add_argument("--model", help="base model path (required unless --dry-run)")
     ap.add_argument("--adapter", help="LoRA adapter path (optional)")
-    ap.add_argument("--mode", default="direct", choices=["direct", "twostage"])
+    ap.add_argument("--mode", default="direct", choices=["direct", "twostage", "grpo"])
     ap.add_argument("--out", help="per-sample JSONL output path")
     ap.add_argument("--limit", type=int, help="evaluate only the first N samples")
     ap.add_argument("--attn", default="sdpa",
@@ -132,11 +132,12 @@ def main():
         return
 
     from protocol import load_model
-    from infer.pipeline import ground_direct, ground_twostage
+    from infer.pipeline import ground_direct, ground_grpo, ground_twostage
     from PIL import Image
 
     model, processor = load_model(args.model, args.adapter, args.attn)
-    ground = ground_direct if args.mode == "direct" else ground_twostage
+    ground = {"direct": ground_direct, "twostage": ground_twostage,
+              "grpo": ground_grpo}[args.mode]
 
     rows = []
     if args.out:

@@ -28,8 +28,12 @@ PROMPT_ROUND1 = ("In this screenshot, locate the UI element for: '{instruction}'
                  "belongs to based on the overall layout. Then output the area.")
 PROMPT_ROUND2 = ("Within this cropped region, give the exact click point "
                  "for: '{instruction}'.")
+PROMPT_REGION = ("To {instruction}, which screen region should be used? "
+                 "Output only <bbox>[x1,y1,x2,y2]</bbox> with coordinates "
+                 "normalized to [0,1000].")
 
-PROMPTS = {"direct": PROMPT_DIRECT, "round1": PROMPT_ROUND1, "round2": PROMPT_ROUND2}
+PROMPTS = {"direct": PROMPT_DIRECT, "round1": PROMPT_ROUND1,
+           "round2": PROMPT_ROUND2, "region": PROMPT_REGION}
 
 # Output tags of the two-stage protocol.
 TAGS = {"region": ("<region>", "</region>"),
