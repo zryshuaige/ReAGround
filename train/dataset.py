@@ -3,10 +3,9 @@
 
 Section ids (loss_sections, aligned with labels):
   0 = prompt / padding            (never supervised)
-  2 = <region>..</area> block     (weight lambda_region)
+  2 = <region>..</area> block or <bbox>..</bbox> (weight lambda_region)
   3 = <point>..</point> or direct "(x, y)"  (weight lambda_point)
-  4 = format tokens: <region></region> tags, <|im_end|>  (weight always 1; the model
-      must learn the protocol tokens)
+  4 = answer terminator: <|im_end|> (weight always 1; the model must learn to stop)
 
 Loss (per micro-batch, per section mean then weighted sum):
   L = lambda_region * CE_2 + lambda_point * CE_3 + 1.0 * CE_4
@@ -28,11 +27,15 @@ from protocol import build_messages, resized_dims
 
 def _spans(full):
     """Char spans (start, end, section_id) covering a target string exactly.
-    Section ids: 2=region+area, 3=point, 4=format tokens."""
+    Section ids: 2=region+area or bbox, 3=point, 4=answer terminator."""
     spans = []
     pos = 0
     if full.startswith("<region>", pos):
         pos_end = full.index("</area>", pos) + len("</area>")
+        spans.append((pos, pos_end, 2))
+        pos = pos_end
+    elif full.startswith("<bbox>", pos):
+        pos_end = full.index("</bbox>", pos) + len("</bbox>")
         spans.append((pos, pos_end, 2))
         pos = pos_end
     if full.startswith("<point>", pos):

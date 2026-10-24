@@ -1,0 +1,12 @@
+model: models/Qwen2.5-VL-3B-Instruct
+adapter: outputs/group_a
+data: data/outputs/train_grpo_region.jsonl
+output: outputs/group_a_region_sft
+
+# One epoch over the same 2K prompts used by GRPO; the adapter keeps rank 8 / alpha 16.
+lr: 1.0e-4
+epochs: 1
+batch_size: 1
+grad_accum: 8
+num_workers: 2
+seed: 42

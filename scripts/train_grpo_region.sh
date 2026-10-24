@@ -2,6 +2,8 @@
 set -euo pipefail
 
 python data/build_grpo_dataset.py --config configs/data_recipe.yaml --samples 2000
+python train/train_region_sft.py --config configs/region_sft.yaml --dry-run
+python train/train_region_sft.py --config configs/region_sft.yaml
 python train/train_grpo.py --config configs/grpo_region.yaml --check-only
 python train/train_grpo.py --config configs/grpo_region.yaml --dry-run
 python train/train_grpo.py --config configs/grpo_region.yaml

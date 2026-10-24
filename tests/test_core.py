@@ -70,7 +70,7 @@ def test_tokenize_and_builders(model_path, sample_image=None):
     from train.dataset import tokenize_target, _spans
     tok = AutoProcessor.from_pretrained(model_path).tokenizer
     for target in ['<region>top toolbar</region><area>[0.31, 0.00, 0.58, 0.09]</area>',
-                   '<point>(1842, 47)</point>', '(1842, 47)']:
+                   '<bbox>[370,370,630,630]</bbox>', '<point>(1842, 47)</point>', '(1842, 47)']:
         ids, secs = tokenize_target(tok, target)
         assert tok.decode(ids) == target + "<|im_end|>\n"
         assert sum(e - s for s, e, _ in _spans(target + "<|im_end|>\n")) == \

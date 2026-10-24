@@ -1,218 +1,190 @@
-# ReAGround: Region-Anchored Two-Stage GUI Grounding for High-Resolution Interfaces
+# ReAGround: Region-Anchored GUI Grounding
 
-<p align="center">
-  <img src="assets/method_comparison.png" width="95%">
-</p>
-
-**ReAGround** is a lightweight GUI grounding method: a Qwen2.5-VL-3B backbone,
-LoRA fine-tuning (rank 8, &alpha;=16), and a *region-anchored two-stage*
-inference protocol in which the model first names the functional **area** of
-the target element and then outputs the exact **point** inside the cropped,
-upscaled region. Everything runs on a single consumer GPU (one RTX 4090, 2–3 h
-per training run).
-
-> Status: code release of an ongoing undergraduate-thesis project.
-> Result tables are intentionally left as TBD until the controlled experiments
-> finish — no number in this repo is fabricated.
-
-## Current method: group A + region-only GRPO
-
-The current experiment keeps the group-A direct-point adapter and trains only the
-**inspection-region** task with GRPO. The same final adapter is called twice at
-inference:
+ReAGround grounds a natural-language instruction to a click point on high-resolution GUI screenshots. It uses one Qwen2.5-VL-3B model and one LoRA adapter in two calls: predict an inspection region, crop it once, then predict the click point in the crop.
 
 ```text
-screenshot + instruction -> <bbox>[x1,y1,x2,y2]</bbox> (normalized to 0–1000)
-                         -> crop once
-                         -> A-style direct point inside the crop
+screenshot + instruction
+    -> <bbox>[x1,y1,x2,y2]</bbox>  (normalized to 0–1000)
+    -> crop once
+    -> (x,y) in the crop
+    -> map the point back to the original screenshot
 ```
 
-There is no second model, no multi-candidate generation, and no new point-SFT run.
-The GRPO run uses **2,000 prompts × 4 rollouts, one epoch**. Training data are
-regenerated with the unchanged run-1 recipe and seed; ScreenSpot is never used
-for training or reward tuning.
+There is no second model, multi-candidate search, or benchmark-dependent fallback. Invalid boxes or points count as misses.
 
-The four scalar rewards are computed only from the generated box and GT:
+> **Status:** ongoing undergraduate-thesis experiments. Accuracy tables remain TBD until the complete controlled runs finish.
 
-1. valid `<bbox>` format (0.1);
-2. coverage of the 1.3× context-expanded GT (0.4 × coverage);
-3. full context coverage within the area limit (0.5);
-4. compactness within that valid range (up to 0.5).
+## Current training recipe
 
-An image-sized box therefore receives at most the first two rewards, not the
-containment/compactness bonus. Invalid or non-finite coordinates receive zero.
+The same final adapter is trained in three stages:
 
-### Isolated GRPO environment (Linux, one A10 24GB)
+1. **Group A:** existing direct-point SFT adapter (`outputs/group_a`).
+2. **Region SFT warmup:** one epoch over 2,000 region prompts. The target is the deterministic 1.3× GT context box. This stage teaches the box protocol and prevents zero-reward GRPO cold start.
+3. **Region GRPO:** the same 2,000 prompts, four rollouts per prompt, one epoch. Point prediction is not retrained with a separate SFT run.
 
-Do not install these packages into the run-1 SFT environment. vLLM 0.10.0 pins
-torch 2.7.1, while TRL 0.21.0 provides the VLM GRPO/colocate interface used by
-`train/train_grpo.py`:
+Training examples are regenerated with the unchanged run-1 corpus adapters, sampling recipe, seed, per-image cap, and held-out validation exclusion. ScreenSpot-Pro and ScreenSpot-v2 are evaluation-only.
+
+### Region reward
+
+For predicted box `B`, expand GT by 1.3× to obtain context `G+`, and let `c = area(B ∩ G+) / area(G+)`:
+
+| Component | Reward |
+|---|---:|
+| Strictly valid `<bbox>` and coordinates | 0.1 |
+| Progressive context coverage | 0.4 × c |
+| `c >= 0.999` and area within the limit | +0.5 |
+| Compactness after successful coverage | +0.0 to 0.5 |
+
+The area limit is `max(area(G+), 25% of the image)`. An image-sized box can receive at most 0.5. Invalid, non-finite, reversed, or out-of-range coordinates receive zero.
+
+## Requirements
+
+- Linux with one A10 24 GB GPU for the current GRPO recipe.
+- Python 3.10 for the isolated training environment.
+- Base model at `models/Qwen2.5-VL-3B-Instruct`.
+- Existing group-A adapter at `outputs/group_a`.
+- Training corpora configured in `configs/data_recipe.yaml`.
+- Evaluation data at `benchmarks/screenspot_pro` and `benchmarks/screenspot_v2`.
+
+Do not install GRPO dependencies into the legacy SFT environment. The pinned environment is:
+
+```text
+torch 2.7.1          torchvision 0.22.1
+transformers 4.55.0  trl 0.21.0
+vllm 0.10.0          peft 0.17.1
+accelerate 1.10.1    datasets 3.6.0
+```
+
+Install it with:
 
 ```bash
-bash scripts/setup_grpo.sh                 # creates .venv-grpo
+cd ReAGround
+bash scripts/setup_grpo.sh
 source .venv-grpo/bin/activate
+```
+
+## Train on one A10
+
+Run the complete pipeline:
+
+```bash
+bash scripts/train_grpo_region.sh
+```
+
+This executes, in order:
+
+```bash
 python data/build_grpo_dataset.py --samples 2000
-python train/train_grpo.py --check-only   # versions, paths, data, TRL config
-python train/train_grpo.py --dry-run      # two real updates on 8 records
-python train/train_grpo.py                # full 2K run
+
+python train/train_region_sft.py --config configs/region_sft.yaml --dry-run
+python train/train_region_sft.py --config configs/region_sft.yaml
+
+python train/train_grpo.py --config configs/grpo_region.yaml --check-only
+python train/train_grpo.py --config configs/grpo_region.yaml --dry-run
+python train/train_grpo.py --config configs/grpo_region.yaml
+```
+
+Region SFT dry-run requires two non-zero-gradient optimizer steps. GRPO preflight checks every real prompt against the 4,096-token engine limit without truncating image input. GRPO dry-run fails unless it observes non-zero rewards, non-zero within-group reward variance, and non-zero gradients. A run that merely completes two steps is **not** considered valid.
+
+Outputs:
+
+| Path | Contents |
+|---|---|
+| `data/outputs/train_grpo_region.jsonl` | Shared 2K region-SFT/GRPO records |
+| `outputs/group_a_region_sft` | Warmed adapter |
+| `outputs/group_a_region_sft_grpo` | Final adapter |
+
+Use fresh output directories for a new experiment. Do not resume from or evaluate the earlier zero-gradient `outputs/group_a_region_grpo` checkpoints.
+
+### A10/vLLM settings
+
+`train/train_grpo.py` applies the TRL-0.21-compatible colocate settings at engine construction:
+
+- vLLM memory utilization `0.40`; `0.35` was measured to leave no usable KV cache on the A10.
+- `max_model_len=4096`, with a full-dataset prompt-length assertion.
+- Video inputs disabled because this task sends images only; this also avoids the video-profiling rotary failure observed with driver 525.105.17.
+- Profiling `max_pixels` aligned with the protocol's `1280 × 28 × 28` image budget.
+- bf16, SDPA, gradient checkpointing, 64 completion tokens, `beta=0`, and four generations.
+
+The code pins TRL 0.21 and does not use sleep-mode flags from newer releases. `--no-vllm` selects slower HF rollout for diagnosis, not the recommended A10 run.
+
+## Evaluate
+
+```bash
 bash scripts/eval_grpo.sh
 ```
 
-The pinned TRL version is configured with `vllm_mode="colocate"`, four
-generations, short 64-token completions, bf16, SDPA, gradient checkpointing, and
-`beta=0` (no reference-model pass). Do not add sleep-mode flags from newer TRL
-versions. `--no-vllm` selects the slower HF rollout path. `--dry-run` never
-overwrites the final adapter.
-
-## News
-
-- **[2026-10]** Added group-A-initialized region GRPO with layered geometric rewards,
-  an isolated TRL/vLLM environment, preflight checks, and two-call inference.
-- **[2026-10]** Code release: evaluation harness, data builder, LoRA training
-  with section-weighted loss, two-stage inference.
-
-## Legacy run-1 SFT method
-
-| Problem on high-resolution GUIs | ReAGround's answer |
-|---|---|
-| Tiny targets get visually diluted after the VLM's image resize ("can't see") | **Zoom-in**: anchor a coarse area, crop and let `smart_resize` upscale it, then point |
-| Weak GUI structural knowledge ("can't find the right place") | **Region anchor**: the model first judges the functional area (`<region>/<area>`), then points inside it (`<point>`) |
-
-Training is plain SFT on a new output protocol — no architecture change.
-Supervision falls only on verifiable facts (region name and area box are
-rule-derived from the GT box; the point is the GT center):
-
-```
-L = 1 * L_region + 1 * L_point (+ 1 * L_format)
-```
-
-where each L is the per-section mean cross-entropy (see `train/dataset.py`).
-
-## Controlled experiment design
-
-Same backbone, same LoRA config, same 8K subset, same eval protocol — one
-variable at a time:
-
-| Group | Recipe | Question |
-|---|---|---|
-| A | 8K + plain LoRA SFT (direct point) | cost of 3x less data |
-| B | A + point-anchored zoom (ReGround-style) | value of zoom alone *(planned)* |
-| C | A + region CoT, no zoom | value of structure reasoning alone *(planned)* |
-| D | A + region CoT + zoom (**ReAGround**) | total gain |
-| E | ZonUI-3B official weights (24K) | external reference to surpass |
-
-## Main results (TBD — experiments in progress)
-
-ScreenSpot-Pro / ScreenSpot-v2, point-in-bbox accuracy, split by text/icon.
-
-| Model | Pro avg | Pro text | Pro icon | v2 avg |
-|---|---|---|---|---|
-| Qwen2.5-VL-3B (base) | TBD | | | |
-| ZonUI-3B (group E) | TBD | | | |
-| Group A (8K direct SFT) | TBD | | | |
-| **ReAGround (group D)** | TBD | | | |
-
-Published references to reproduce *before* any training: ZonUI-3B ≈ 29.0% and
-base Qwen2.5-VL-3B ≈ 16.0% on ScreenSpot-Pro. Our harness must match these;
-see `scripts/eval_zonui_pro.sh`.
-
-## Installation
-
-Tested: Python 3.9, torch 2.1.2+cu121, `transformers==4.49.0` (newer versions
-break with torch 2.1 — do not upgrade blindly).
+Equivalent individual commands:
 
 ```bash
-pip install -r requirements.txt
-```
-
-On a fresh GPU server (e.g. AutoDL), `bash scripts/setup_server.sh` installs
-deps and downloads both model weights and both benchmarks (via hf-mirror).
-An optional [Dockerfile](docker/Dockerfile) is provided for servers with full
-root; rental platforms without a docker daemon should use the pip path.
-
-## Data preparation
-
-Benchmarks (evaluation only, never trained on):
-
-- ScreenSpot-Pro (`likaixin/ScreenSpot-Pro`), 1581 samples
-- ScreenSpot-v2 (`HongxinLi/ScreenSpot_v2`), 1272 samples
-
-Training corpora (same public sources as ZonUI-3B):
-
-```bash
-python data/download_corpus.py        # ShowUI-web / ShowUI-desktop / UGround (gated)
-# AMEX: manual steps printed by the script (https://www.yxchai.com/AMEX)
-
-python data/build_dataset.py --config configs/data_recipe.yaml --fmt twostage
-# -> data/outputs/train_twostage.jsonl (16K sequences) + val.jsonl (250 held-out)
-```
-
-Sampling: platform-balanced (web/mobile/desktop ≈ 1:1:1), fixed seed, at most
-30 entries per unique screenshot (the desktop corpus contains only ~100 unique
-screenshots). All area/region/point labels are rule-derived from GT boxes —
-no human annotation added. ShowUI-web ships element descriptions, not task
-queries; we synthesize the query with a documented template
-(`data/build_dataset.py::iter_showui_web`).
-
-## Training
-
-```bash
-python train/train_lora.py --config configs/train_lora.yaml          # group D
-python train/train_lora.py --config configs/train_lora.yaml --dry-run # 2-step sanity run
-```
-
-LoRA rank 8 / &alpha;=16 on attention+MLP projections, bf16, batch 1 ×
-grad-accum 48, lr 2e-4, cosine — matching ZonUI-3B's recipe. Only the adapter
-is saved.
-
-## Evaluation
-
-```bash
-# golden check first: reproduce ZonUI-3B ~29.0% on ScreenSpot-Pro
-bash scripts/eval_zonui_pro.sh
-
-# ReAGround, two-stage inference
 python eval/eval_screenspot.py --benchmark pro --data-dir benchmarks/screenspot_pro \
-    --model models/Qwen2.5-VL-3B-Instruct --adapter outputs/reaground_lora \
-    --mode twostage --out outputs/group_d_pro.jsonl
+  --model models/Qwen2.5-VL-3B-Instruct \
+  --adapter outputs/group_a_region_sft_grpo --mode grpo \
+  --out outputs/group_a_region_sft_grpo_pro.jsonl
+
+python eval/eval_screenspot.py --benchmark v2 --data-dir benchmarks/screenspot_v2 \
+  --model models/Qwen2.5-VL-3B-Instruct \
+  --adapter outputs/group_a_region_sft_grpo --mode grpo \
+  --out outputs/group_a_region_sft_grpo_v2.jsonl
 ```
 
-Per-sample JSONL output feeds directly into error decomposition (hit / near-miss
-/ far-miss). `tests/test_core.py` covers parsing, coordinate round-trips, the
-section-weighted loss math, and the sequence builders — run it before trusting
-any number.
+Each prediction is saved as JSONL. The metric is point-in-GT-box accuracy; inspect per-sample outputs before reporting aggregate results.
 
-## Repository structure
+## Results
 
+| Model | ScreenSpot-Pro avg | ScreenSpot-v2 avg |
+|---|---:|---:|
+| ReAGround region SFT + GRPO | TBD | TBD |
+
+No accuracy improvement is claimed yet. An earlier direct-A-to-GRPO attempt produced only point-style completions: all observed rewards and gradients were zero. That run is a cold-start negative result, not a valid evaluation of GRPO. The warmup pipeline in this revision still requires a complete A10 training and evaluation run.
+
+## Tests
+
+```bash
+python tests/test_core.py
+python tests/test_grpo.py
+
+# Optional real-tokenizer and sequence-builder checks
+REAGROUND_MODEL=models/Qwen2.5-VL-3B-Instruct \
+REAGROUND_TEST_IMAGE=/path/to/screenshot.png \
+python tests/test_core.py
 ```
-protocol.py             prompts, tags, resize budget, model I/O (single source of truth)
-eval/eval_screenspot.py ScreenSpot-v2 / Pro / held-out-set evaluation
-infer/parse.py          output parsing + coordinate mapping (self-tested)
-infer/pipeline.py       direct and two-stage inference
-data/download_corpus.py training-corpus download (HF mirror aware)
-data/build_dataset.py   8K sampling + two-stage sequence construction
-train/dataset.py        tokenization with per-token loss sections
-train/train_lora.py     LoRA SFT + section-weighted loss trainer
-configs/                all hyperparameters (data recipe, LoRA, lambdas)
-scripts/                server setup + per-group run scripts
-tests/                  unit tests (no GPU needed)
-docker/                 optional Dockerfile
+
+The tests cover coordinate parsing and mapping, reward geometry, SFT targets and loss sections, vLLM argument injection, and dry-run learning-signal gates. CPU tests cannot replace the required A10 end-to-end run.
+
+## Legacy controlled experiments
+
+The original run-1 SFT code remains available for controlled comparisons:
+
+```bash
+python train/train_lora.py --config configs/train_group_a.yaml
+python train/train_lora.py --config configs/train_lora.yaml
 ```
 
-## Acknowledgement
+That environment uses Python 3.9, torch 2.1.2+cu121, and `transformers==4.49.0`; see `requirements.txt`. Keep it separate from `.venv-grpo`.
 
-[Qwen2.5-VL](https://arxiv.org/abs/2502.13923),
-[ZonUI-3B](https://github.com/Han1018/ZonUI-3B) (baseline recipe and protocol),
-[ShowUI](https://github.com/showlab/ShowUI),
-[UGround](https://github.com/OSU-NLP-Group/UGround),
-[AMEX](https://www.yxchai.com/AMEX),
-[ScreenSpot-Pro](https://github.com/likaixin2000/ScreenSpot-Pro-GUI-Grounding).
+## Repository map
 
-## Citation
+```text
+protocol.py                    Shared prompts, resize budget, and model I/O
+data/build_dataset.py          Run-1 corpus sampling and direct/two-stage labels
+data/build_grpo_dataset.py     Shared 2K records and region-SFT box targets
+train/dataset.py               Tokenization and answer-only loss masks
+train/train_lora.py            Legacy direct/two-stage LoRA SFT
+train/train_region_sft.py      Region warmup from group A
+train/train_grpo.py            A10 preflight and region GRPO
+train/grpo_reward.py           Strict box parsing and geometric rewards
+infer/pipeline.py              Direct, legacy two-stage, and GRPO inference
+eval/eval_screenspot.py        ScreenSpot-Pro/v2 evaluation
+configs/                       Data and training configurations
+scripts/                       Setup, training, and evaluation entry points
+tests/                         CPU and real-tokenizer tests
+```
 
-Thesis manuscript in preparation; citation entry will be added upon publication.
+## Acknowledgements
+
+[Qwen2.5-VL](https://arxiv.org/abs/2502.13923), [ZonUI-3B](https://github.com/Han1018/ZonUI-3B), [ShowUI](https://github.com/showlab/ShowUI), [UGround](https://github.com/OSU-NLP-Group/UGround), [AMEX](https://www.yxchai.com/AMEX), and [ScreenSpot-Pro](https://github.com/likaixin2000/ScreenSpot-Pro-GUI-Grounding).
 
 ## License
 
-Apache-2.0 (code). The training corpora keep their own licenses — UGround data
-is CC BY-NC-SA 4.0 (non-commercial use only).
+Apache-2.0 for code. Training corpora retain their own licenses; UGround is CC BY-NC-SA 4.0 (non-commercial use only).
