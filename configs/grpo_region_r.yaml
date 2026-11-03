@@ -1,0 +1,11 @@
+model: models/Qwen2.5-VL-3B-Instruct
+adapter: outputs/region_r_sft
+data: data/outputs/train_region_adaptive.jsonl
+output: outputs/region_r_grpo
+reward_mode: adaptive
+
+learning_rate: 1.0e-6
+seed: 42
+use_vllm: true
+vllm_gpu_memory_utilization: 0.40
+max_model_len: 4096

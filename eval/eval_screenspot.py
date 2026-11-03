@@ -90,6 +90,20 @@ def summarize(rows):
             print("  %-22s %s" % (k, acc(groups[k])))
     n_fail = sum(1 for r in rows if r["point"] is None)
     print("parse failures (counted as miss): %d" % n_fail)
+    if any("crop_box" in r["info"] for r in rows):
+        center_hits, overlaps = 0, 0
+        for r in rows:
+            crop = r["info"].get("crop_box")
+            if not crop:
+                continue
+            x1, y1, x2, y2 = r["bbox"]
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            center_hits += crop[0] <= cx <= crop[2] and crop[1] <= cy <= crop[3]
+            overlaps += min(crop[2], x2) > max(crop[0], x1) and min(crop[3], y2) > max(crop[1], y1)
+        print("region GT-center coverage: %d/%d (%.1f%%)" %
+              (center_hits, len(rows), 100.0 * center_hits / len(rows)))
+        print("region GT overlap: %d/%d (%.1f%%)" %
+              (overlaps, len(rows), 100.0 * overlaps / len(rows)))
 
 
 def main():
@@ -99,7 +113,8 @@ def main():
     ap.add_argument("--custom-jsonl", help="held-out set from build_dataset.py")
     ap.add_argument("--model", help="base model path (required unless --dry-run)")
     ap.add_argument("--adapter", help="LoRA adapter path (optional)")
-    ap.add_argument("--mode", default="direct", choices=["direct", "twostage", "grpo"])
+    ap.add_argument("--direct-adapter", help="frozen direct adapter for dual mode")
+    ap.add_argument("--mode", default="direct", choices=["direct", "twostage", "grpo", "dual"])
     ap.add_argument("--out", help="per-sample JSONL output path")
     ap.add_argument("--limit", type=int, help="evaluate only the first N samples")
     ap.add_argument("--attn", default="sdpa",
@@ -131,13 +146,19 @@ def main():
         print("missing images:", missing)
         return
 
-    from protocol import load_model
-    from infer.pipeline import ground_direct, ground_grpo, ground_twostage
+    from protocol import load_dual_model, load_model
+    from infer.pipeline import ground_direct, ground_dual, ground_grpo, ground_twostage
     from PIL import Image
 
-    model, processor = load_model(args.model, args.adapter, args.attn)
+    if args.mode == "dual":
+        if not args.adapter or not args.direct_adapter:
+            ap.error("dual mode requires --adapter and --direct-adapter")
+        model, processor = load_dual_model(
+            args.model, args.adapter, args.direct_adapter, args.attn)
+    else:
+        model, processor = load_model(args.model, args.adapter, args.attn)
     ground = {"direct": ground_direct, "twostage": ground_twostage,
-              "grpo": ground_grpo}[args.mode]
+              "grpo": ground_grpo, "dual": ground_dual}[args.mode]
 
     rows = []
     if args.out:

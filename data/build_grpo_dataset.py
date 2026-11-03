@@ -20,10 +20,30 @@ def normalized_bbox(bbox, width, height):
             bbox[2] / width * 1000, bbox[3] / height * 1000]
 
 
-def region_target(gt_bbox, context_scale=1.3):
-    context = expand(gt_bbox, context_scale)
-    box = [math.floor(context[0]), math.floor(context[1]),
-           math.ceil(context[2]), math.ceil(context[3])]
+def region_box(gt_bbox, mode="context", context_scale=1.3,
+               min_area_ratio=0.10, max_area_ratio=0.25):
+    if mode == "context":
+        return expand(gt_bbox, context_scale)
+    if mode != "adaptive":
+        raise ValueError("unknown region target mode: " + mode)
+    if not 0 < min_area_ratio <= max_area_ratio <= 1:
+        raise ValueError("invalid adaptive area range")
+    gt_w, gt_h = gt_bbox[2] - gt_bbox[0], gt_bbox[3] - gt_bbox[1]
+    desired_area = min(max(gt_w * gt_h, min_area_ratio * 1000 * 1000),
+                       max_area_ratio * 1000 * 1000)
+    side = math.sqrt(desired_area)
+    width, height = min(1000.0, max(gt_w, side)), min(1000.0, max(gt_h, side))
+    cx, cy = (gt_bbox[0] + gt_bbox[2]) / 2, (gt_bbox[1] + gt_bbox[3]) / 2
+    x1 = max(0.0, min(1000.0 - width, cx - width / 2))
+    y1 = max(0.0, min(1000.0 - height, cy - height / 2))
+    return [x1, y1, x1 + width, y1 + height]
+
+
+def region_target(gt_bbox, context_scale=1.3, mode="context",
+                  min_area_ratio=0.10, max_area_ratio=0.25):
+    box = region_box(gt_bbox, mode, context_scale, min_area_ratio, max_area_ratio)
+    box = [math.floor(box[0]), math.floor(box[1]),
+           math.ceil(box[2]), math.ceil(box[3])]
     return "<bbox>[%d,%d,%d,%d]</bbox>" % tuple(box)
 
 
@@ -32,6 +52,9 @@ def main():
     parser.add_argument("--config", default="configs/data_recipe.yaml")
     parser.add_argument("--output", default="data/outputs/train_grpo_region.jsonl")
     parser.add_argument("--samples", type=int, default=2000)
+    parser.add_argument("--target-mode", choices=["context", "adaptive"], default="context")
+    parser.add_argument("--min-area-ratio", type=float, default=0.10)
+    parser.add_argument("--max-area-ratio", type=float, default=0.25)
     args = parser.parse_args()
     cfg = yaml.safe_load(open(args.config, encoding="utf-8"))
 
@@ -52,9 +75,16 @@ def main():
             with Image.open(entry["image"]) as image:
                 width, height = image.size
             gt_bbox = normalized_bbox(entry["bbox"], width, height)
+            target_bbox = region_box(gt_bbox, args.target_mode,
+                                     min_area_ratio=args.min_area_ratio,
+                                     max_area_ratio=args.max_area_ratio)
             record = {"id": entry.get("id", entry["image"]),
                       "image": entry["image"], "instruction": entry["instruction"],
-                      "mode": "region", "target": region_target(gt_bbox),
+                      "mode": "region",
+                      "target": region_target(gt_bbox, mode=args.target_mode,
+                                              min_area_ratio=args.min_area_ratio,
+                                              max_area_ratio=args.max_area_ratio),
+                      "target_bbox": target_bbox, "target_mode": args.target_mode,
                       "gt_bbox": gt_bbox, "image_size": [width, height]}
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
     print("wrote %d region-GRPO records to %s" % (len(train), args.output))

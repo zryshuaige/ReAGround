@@ -12,7 +12,7 @@ import yaml
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from protocol import MAX_PIXELS, build_messages, resized_dims
-from train.grpo_reward import REWARD_FUNCS, parse_bbox
+from train.grpo_reward import ADAPTIVE_REWARD_FUNCS, REWARD_FUNCS, parse_bbox
 
 MAX_COMPLETION_LENGTH = 64
 
@@ -107,7 +107,7 @@ def check_prompt_lengths(records, processor, max_model_len):
     return longest
 
 
-def load_records(path, limit=None):
+def load_records(path, limit=None, require_target=False):
     records = [json.loads(line) for line in open(path, encoding="utf-8")]
     if limit is not None:
         records = records[:limit]
@@ -116,6 +116,10 @@ def load_records(path, limit=None):
     for record in records:
         if parse_bbox("<bbox>[%s]</bbox>" % ",".join(map(str, record["gt_bbox"]))) is None:
             raise ValueError("invalid normalized GT box in %s: %s" % (record["id"], record["gt_bbox"]))
+        if require_target:
+            target = record.get("target_bbox")
+            if not target or parse_bbox("<bbox>[%s]</bbox>" % ",".join(map(str, target))) is None:
+                raise ValueError("missing adaptive target box in %s; rebuild region data" % record["id"])
         if not os.path.isfile(record["image"]):
             raise FileNotFoundError(record["image"])
     return records
@@ -129,7 +133,8 @@ def make_dataset(records, processor):
             build_messages("region", record["instruction"]),
             tokenize=False, add_generation_prompt=True)
         rows.append({"prompt": prompt, "image": record["image"],
-                     "gt_bbox": record["gt_bbox"]})
+                     "gt_bbox": record["gt_bbox"],
+                     "target_bbox": record.get("target_bbox", record["gt_bbox"])})
     dataset = Dataset.from_list(rows).cast_column("image", HFImage(decode=True))
 
     def prepare(batch):
@@ -190,11 +195,15 @@ def main():
     args = parser.parse_args()
     cfg = yaml.safe_load(open(args.config, encoding="utf-8"))
     use_vllm = cfg["use_vllm"] and not args.no_vllm
+    reward_mode = cfg.get("reward_mode", "legacy")
+    if reward_mode not in ("legacy", "adaptive"):
+        raise ValueError("reward_mode must be legacy or adaptive")
     check_versions(use_vllm)
     for key in ("model", "adapter", "data"):
         if not os.path.exists(cfg[key]):
             raise FileNotFoundError("%s: %s" % (key, cfg[key]))
-    records = load_records(cfg["data"], 8 if args.dry_run else None)
+    records = load_records(cfg["data"], 8 if args.dry_run else None,
+                           require_target=reward_mode == "adaptive")
     training_args = make_args(cfg, args.dry_run, args.no_vllm)
     if args.check_only:
         from transformers import AutoProcessor
@@ -216,12 +225,13 @@ def main():
     model.enable_input_require_grads()
     processor = AutoProcessor.from_pretrained(cfg["model"])
     processor.tokenizer.padding_side = "left"
+    reward_funcs = ADAPTIVE_REWARD_FUNCS if reward_mode == "adaptive" else REWARD_FUNCS
     context = patch_vllm_engine_args(cfg) if use_vllm else nullcontext()
     with context:
         trainer = GRPOTrainer(
             model=model,
             args=training_args,
-            reward_funcs=REWARD_FUNCS,
+            reward_funcs=reward_funcs,
             train_dataset=make_dataset(records, processor),
             processing_class=processor,
         )

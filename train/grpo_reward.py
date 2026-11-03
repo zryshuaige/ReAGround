@@ -86,3 +86,55 @@ def size_reward(completions, gt_bbox, **kwargs):
 
 
 REWARD_FUNCS = [format_reward, coverage_reward, containment_reward, size_reward]
+
+
+def adaptive_reward_metrics(completion, gt_bbox, target_bbox,
+                            min_area_ratio=0.10, max_area_ratio=0.25):
+    box = parse_bbox(completion)
+    if box is None:
+        return 0.0, 0.0, 0.0, 0.0
+    gt_cx, gt_cy = (gt_bbox[0] + gt_bbox[2]) / 2, (gt_bbox[1] + gt_bbox[3]) / 2
+    cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+    distance = math.hypot(cx - gt_cx, cy - gt_cy) / math.hypot(1000, 1000)
+    position = max(0.0, 1.0 - distance)
+    ix1, iy1 = max(box[0], gt_bbox[0]), max(box[1], gt_bbox[1])
+    ix2, iy2 = min(box[2], gt_bbox[2]), min(box[3], gt_bbox[3])
+    intersection = area([ix1, iy1, ix2, iy2])
+    coverage = min(1.0, intersection / area(gt_bbox)) if area(gt_bbox) else 0.0
+    center_hit = box[0] <= gt_cx <= box[2] and box[1] <= gt_cy <= box[3]
+    ratio = area(box) / (1000 * 1000)
+    upper = max(max_area_ratio, area(target_bbox) / (1000 * 1000))
+    if ratio < min_area_ratio:
+        area_score = ratio / min_area_ratio
+    elif ratio > upper:
+        area_score = max(0.0, 1.0 - (ratio - upper) / upper)
+    else:
+        area_score = 1.0
+    return (0.1, 0.4 * position, 0.5 * coverage,
+            0.5 * area_score * float(center_hit))
+
+
+def _adaptive_reward(completions, gt_bbox, target_bbox, index,
+                     min_area_ratio=0.10, max_area_ratio=0.25, **kwargs):
+    return [adaptive_reward_metrics(c, gt, target, min_area_ratio, max_area_ratio)[index]
+            for c, gt, target in zip(completions, gt_bbox, target_bbox)]
+
+
+def adaptive_format_reward(completions, gt_bbox, target_bbox, **kwargs):
+    return _adaptive_reward(completions, gt_bbox, target_bbox, 0, **kwargs)
+
+
+def adaptive_position_reward(completions, gt_bbox, target_bbox, **kwargs):
+    return _adaptive_reward(completions, gt_bbox, target_bbox, 1, **kwargs)
+
+
+def adaptive_coverage_reward(completions, gt_bbox, target_bbox, **kwargs):
+    return _adaptive_reward(completions, gt_bbox, target_bbox, 2, **kwargs)
+
+
+def adaptive_area_reward(completions, gt_bbox, target_bbox, **kwargs):
+    return _adaptive_reward(completions, gt_bbox, target_bbox, 3, **kwargs)
+
+
+ADAPTIVE_REWARD_FUNCS = [adaptive_format_reward, adaptive_position_reward,
+                         adaptive_coverage_reward, adaptive_area_reward]

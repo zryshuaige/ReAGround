@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Warm up the group-A adapter on inspection boxes before region GRPO."""
+"""Warm up an inspection-box adapter before region GRPO."""
 import argparse
 import os
 import sys
@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from train.dataset import GroundingSFT, collate
 from train.grpo_reward import parse_bbox
 from train.train_grpo import check_versions, load_records
-from train.train_lora import SectionalTrainer
+from train.train_lora import LORA_TARGETS, SectionalTrainer
 
 
 def main():
@@ -21,21 +21,32 @@ def main():
     args = parser.parse_args()
     cfg = yaml.safe_load(open(args.config, encoding="utf-8"))
     check_versions(use_vllm=False)
-    for key in ("model", "adapter", "data"):
+    for key in ("model", "data"):
         if not os.path.exists(cfg[key]):
             raise FileNotFoundError("%s: %s" % (key, cfg[key]))
+    adapter = cfg.get("adapter")
+    if adapter and not os.path.exists(adapter):
+        raise FileNotFoundError("adapter: " + adapter)
     records = load_records(cfg["data"], 8 if args.dry_run else None)
     for record in records:
         if record.get("mode") != "region" or parse_bbox(record.get("target", "")) is None:
             raise ValueError("invalid region SFT target; rebuild data with data/build_grpo_dataset.py")
 
-    from peft import PeftModel
+    from peft import LoraConfig, PeftModel, get_peft_model
     from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration, TrainingArguments
 
     torch.manual_seed(cfg["seed"])
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         cfg["model"], torch_dtype=torch.bfloat16, attn_implementation="sdpa")
-    model = PeftModel.from_pretrained(model, cfg["adapter"], is_trainable=True)
+    if adapter:
+        model = PeftModel.from_pretrained(model, adapter, is_trainable=True)
+    else:
+        lora = cfg.get("lora", {})
+        lora_config = LoraConfig(
+            r=lora.get("r", 8), lora_alpha=lora.get("alpha", 16),
+            lora_dropout=lora.get("dropout", 0.05), bias="none",
+            target_modules=LORA_TARGETS)
+        model = get_peft_model(model, lora_config)
     model.config.use_cache = False
     model.enable_input_require_grads()
     model.print_trainable_parameters()

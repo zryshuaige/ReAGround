@@ -43,8 +43,11 @@ def ground_twostage(model, processor, image, instruction):
     return point_to_original(pt[0], pt[1], resized_wh, crop_box), info
 
 
-def ground_grpo(model, processor, image, instruction):
-    """A-initialized inspection box followed by A-style direct pointing."""
+def ground_grpo(model, processor, image, instruction,
+                region_adapter=None, direct_adapter=None):
+    """Inspection box followed by direct pointing, optionally with separate adapters."""
+    if region_adapter:
+        model.set_adapter(region_adapter)
     raw, _ = generate(model, processor, image, "region", instruction)
     box = parse_bbox(raw)
     info = {"region_raw": raw, "region_bbox": box}
@@ -57,8 +60,18 @@ def ground_grpo(model, processor, image, instruction):
     if crop_box[2] - crop_box[0] < 1 or crop_box[3] - crop_box[1] < 1:
         return None, info
     crop = image.crop(crop_box)
+    if direct_adapter:
+        model.set_adapter(direct_adapter)
     point, click_info = ground_direct(model, processor, crop, instruction)
     info.update({"crop_box": crop_box, "click_raw": click_info["raw"]})
     if point is None:
         return None, info
+    if direct_adapter and not (0 <= point[0] <= crop.width and 0 <= point[1] <= crop.height):
+        info["click_out_of_bounds"] = True
+        return None, info
     return (crop_box[0] + point[0], crop_box[1] + point[1]), info
+
+
+def ground_dual(model, processor, image, instruction):
+    return ground_grpo(model, processor, image, instruction,
+                       region_adapter="region", direct_adapter="direct")

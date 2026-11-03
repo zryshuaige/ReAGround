@@ -53,6 +53,21 @@ def load_model(model_path, adapter_path=None, attn_implementation="sdpa"):
     return model, processor
 
 
+def load_dual_model(model_path, region_adapter_path, direct_adapter_path,
+                    attn_implementation="sdpa"):
+    from peft import PeftModel
+    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+        model_path, torch_dtype=torch.bfloat16, device_map="auto",
+        attn_implementation=attn_implementation)
+    model = PeftModel.from_pretrained(model, region_adapter_path, adapter_name="region")
+    model.load_adapter(direct_adapter_path, adapter_name="direct")
+    model.set_adapter("region")
+    model.eval()
+    model.generation_config.do_sample = False
+    processor = AutoProcessor.from_pretrained(model_path)
+    return model, processor
+
+
 def resized_dims(width, height):
     """smart_resize output as (resized_width, resized_height)."""
     rh, rw = smart_resize(height, width, factor=PATCH_FACTOR,
