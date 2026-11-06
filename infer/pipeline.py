@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Inference pipelines: direct (baseline) and two-stage region-anchored (ReAGround)."""
+"""Direct, dual-adapter two-stage, and experimental single-pass inference."""
 import os
 import sys
+
+import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from protocol import generate, PATCH_FACTOR
@@ -75,3 +77,20 @@ def ground_grpo(model, processor, image, instruction,
 def ground_dual(model, processor, image, instruction):
     return ground_grpo(model, processor, image, instruction,
                        region_adapter="region", direct_adapter="direct")
+
+
+def ground_heads(model, processor, image, instruction):
+    """Single forward pass with dense region fusion and continuous point decoding."""
+    from modeling_reaground import decode_point
+    from protocol import build_messages, resized_dims
+    rw, rh = resized_dims(image.width, image.height)
+    resized = image.resize((rw, rh))
+    text = processor.apply_chat_template(
+        build_messages("heads", instruction), tokenize=False,
+        add_generation_prompt=True)
+    inputs = processor(text=[text], images=[resized], return_tensors="pt").to(model.device)
+    with torch.inference_mode():
+        outputs = model(**inputs)
+    point, info = decode_point(outputs, image.size)
+    info["resized_wh"] = [rw, rh]
+    return point, info

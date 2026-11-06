@@ -111,3 +111,51 @@ def collate(features, pad_id):
                                           dtype=f[key].dtype)])
             for f in features])
     return batch
+
+
+class GroundingHeadSFT(Dataset):
+    """Prompt-only image samples with normalized GT boxes for dense heads."""
+
+    def __init__(self, jsonl_path, processor):
+        self.records = [json.loads(l) for l in open(jsonl_path, encoding="utf-8")]
+        self.processor = processor
+
+    def __len__(self):
+        return len(self.records)
+
+    def __getitem__(self, i):
+        rec = self.records[i]
+        if "bbox" not in rec:
+            raise ValueError("head training requires the original bbox; rebuild direct data")
+        image = Image.open(rec["image"]).convert("RGB")
+        width, height = image.size
+        x1, y1, x2, y2 = (float(v) for v in rec["bbox"])
+        if not (0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height):
+            raise ValueError("invalid GT bbox in " + rec["id"])
+        rw, rh = resized_dims(width, height)
+        image = image.resize((rw, rh))
+        prompt = self.processor.apply_chat_template(
+            build_messages("heads", rec["instruction"]),
+            tokenize=False, add_generation_prompt=True)
+        enc = self.processor(text=[prompt], images=[image], return_tensors="pt")
+        return {
+            "input_ids": enc["input_ids"][0],
+            "attention_mask": torch.ones_like(enc["input_ids"][0]),
+            "pixel_values": enc["pixel_values"],
+            "image_grid_thw": enc["image_grid_thw"][0],
+            "gt_bbox": torch.tensor([x1 / width, y1 / height,
+                                     x2 / width, y2 / height], dtype=torch.float32),
+        }
+
+
+def collate_heads(features, pad_id):
+    n = max(len(f["input_ids"]) for f in features)
+    batch = {"pixel_values": torch.cat([f["pixel_values"] for f in features]),
+             "image_grid_thw": torch.stack([f["image_grid_thw"] for f in features]),
+             "gt_bbox": torch.stack([f["gt_bbox"] for f in features])}
+    for key, pad in (("input_ids", pad_id), ("attention_mask", 0)):
+        batch[key] = torch.stack([
+            torch.cat([f[key], torch.full((n - len(f[key]),), pad,
+                                          dtype=f[key].dtype)])
+            for f in features])
+    return batch

@@ -89,7 +89,14 @@ def summarize(rows):
         for k in sorted(groups):
             print("  %-22s %s" % (k, acc(groups[k])))
     n_fail = sum(1 for r in rows if r["point"] is None)
-    print("parse failures (counted as miss): %d" % n_fail)
+    print("missing points / parse failures (counted as miss): %d" % n_fail)
+    if any("region_center_hit" in r["info"] for r in rows):
+        region_hits = sum(r["info"]["region_center_hit"] for r in rows)
+        point_cells = sum(r["info"]["point_cell_hit"] for r in rows)
+        print("region center-cell recall: %d/%d (%.1f%%)" %
+              (region_hits, len(rows), 100.0 * region_hits / len(rows)))
+        print("point center-cell accuracy: %d/%d (%.1f%%)" %
+              (point_cells, len(rows), 100.0 * point_cells / len(rows)))
     if any("crop_box" in r["info"] for r in rows):
         center_hits, overlaps = 0, 0
         for r in rows:
@@ -114,7 +121,8 @@ def main():
     ap.add_argument("--model", help="base model path (required unless --dry-run)")
     ap.add_argument("--adapter", help="LoRA adapter path (optional)")
     ap.add_argument("--direct-adapter", help="frozen direct adapter for dual mode")
-    ap.add_argument("--mode", default="direct", choices=["direct", "twostage", "grpo", "dual"])
+    ap.add_argument("--mode", default="direct",
+                    choices=["direct", "twostage", "grpo", "dual", "heads"])
     ap.add_argument("--out", help="per-sample JSONL output path")
     ap.add_argument("--limit", type=int, help="evaluate only the first N samples")
     ap.add_argument("--attn", default="sdpa",
@@ -146,8 +154,9 @@ def main():
         print("missing images:", missing)
         return
 
-    from protocol import load_dual_model, load_model
-    from infer.pipeline import ground_direct, ground_dual, ground_grpo, ground_twostage
+    from protocol import load_dual_model, load_head_model, load_model
+    from infer.pipeline import (ground_direct, ground_dual, ground_grpo,
+                                ground_heads, ground_twostage)
     from PIL import Image
 
     if args.mode == "dual":
@@ -155,10 +164,15 @@ def main():
             ap.error("dual mode requires --adapter and --direct-adapter")
         model, processor = load_dual_model(
             args.model, args.adapter, args.direct_adapter, args.attn)
+    elif args.mode == "heads":
+        if not args.adapter:
+            ap.error("heads mode requires a trained adapter containing both heads")
+        model, processor = load_head_model(args.model, args.adapter, args.attn)
     else:
         model, processor = load_model(args.model, args.adapter, args.attn)
     ground = {"direct": ground_direct, "twostage": ground_twostage,
-              "grpo": ground_grpo, "dual": ground_dual}[args.mode]
+              "grpo": ground_grpo, "dual": ground_dual,
+              "heads": ground_heads}[args.mode]
 
     rows = []
     if args.out:
@@ -168,6 +182,15 @@ def main():
         image = Image.open(s["image_path"]).convert("RGB") if s.get("image_path") \
             else Image.open(io.BytesIO(s["image_bytes"])).convert("RGB")
         point, info = ground(model, processor, image, s["instruction"])
+        if args.mode == "heads":
+            from modeling_reaground import grid_targets
+            width, height = image.size
+            x1, y1, x2, y2 = s["bbox"]
+            _, target_index, _ = grid_targets(
+                [x1 / width, y1 / height, x2 / width, y2 / height], info["grid"])
+            target_cell = list(divmod(int(target_index), info["grid"][1]))
+            info["region_center_hit"] = info["region_cell"] == target_cell
+            info["point_cell_hit"] = info["point_cell"] == target_cell
         row = {"id": s["id"], "point": point, "bbox": s["bbox"],
                "ui_type": s["ui_type"], "platform": s["platform"], "app": s["app"],
                "hit": hit(point, s["bbox"]), "info": info}

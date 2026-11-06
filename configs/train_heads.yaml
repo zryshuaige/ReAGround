@@ -1,0 +1,15 @@
+# Single-pass dense heads: one LoRA, joint region and point SFT.
+model: models/Qwen2.5-VL-3B-Instruct
+data: data/outputs/train_direct.jsonl
+output: outputs/single_pass_heads
+region_layer: 8
+attn: sdpa
+
+lora: {r: 8, alpha: 16, dropout: 0.05}
+lambdas: {region: 1.0, offset: 1.0}
+lr: 2.0e-4
+epochs: 1
+batch_size: 1
+grad_accum: 48
+num_workers: 2
+seed: 42

@@ -198,7 +198,7 @@ def build_direct(entry, sid):
     px = (bbox[0] + bbox[2]) / 2 / w * rw
     py = (bbox[1] + bbox[3]) / 2 / h * rh
     return [{"id": sid + "-d", "mode": "direct", "image": entry["image"],
-             "instruction": entry["instruction"],
+             "instruction": entry["instruction"], "bbox": list(bbox),
              "target": "(%d, %d)" % (round(px), round(py))}]
 
 

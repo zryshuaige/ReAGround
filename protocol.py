@@ -6,6 +6,8 @@ The direct-mode prompt and the resize budget replicate the ZonUI-3B evaluation
 protocol (https://huggingface.co/zonghanHZH/ZonUI-3B) exactly, so that our
 evaluations of the base model, ZonUI-3B, and ReAGround share one protocol.
 """
+import os
+
 import torch
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 from transformers.models.qwen2_vl.image_processing_qwen2_vl import smart_resize
@@ -31,9 +33,11 @@ PROMPT_ROUND2 = ("Within this cropped region, give the exact click point "
 PROMPT_REGION = ("To {instruction}, which screen region should be used? "
                  "Output only <bbox>[x1,y1,x2,y2]</bbox> with coordinates "
                  "normalized to [0,1000].")
+PROMPT_HEADS = (PROMPT_DIRECT + " Locate the UI element for: '{instruction}'.")
 
 PROMPTS = {"direct": PROMPT_DIRECT, "round1": PROMPT_ROUND1,
-           "round2": PROMPT_ROUND2, "region": PROMPT_REGION}
+           "round2": PROMPT_ROUND2, "region": PROMPT_REGION,
+           "heads": PROMPT_HEADS}
 
 # Output tags of the two-stage protocol.
 TAGS = {"region": ("<region>", "</region>"),
@@ -64,6 +68,34 @@ def load_dual_model(model_path, region_adapter_path, direct_adapter_path,
     model.set_adapter("region")
     model.eval()
     model.generation_config.do_sample = False
+    processor = AutoProcessor.from_pretrained(model_path)
+    return model, processor
+
+
+def load_head_model(model_path, adapter_path=None, attn_implementation="sdpa"):
+    import json
+    from peft import PeftModel
+    from modeling_reaground import ReAGroundHeadModel
+    kwargs = {}
+    if adapter_path:
+        adapter_config_path = os.path.join(adapter_path, "adapter_config.json")
+        adapter_config = json.load(open(adapter_config_path, encoding="utf-8"))
+        saved = set(adapter_config.get("modules_to_save") or [])
+        if not {"region_head", "point_head"} <= saved:
+            raise ValueError("heads mode requires an adapter trained with both heads")
+        head_config = os.path.join(adapter_path, "head_config.json")
+        if os.path.exists(head_config):
+            kwargs = json.load(open(head_config, encoding="utf-8"))
+    model = ReAGroundHeadModel.from_pretrained(
+        model_path, torch_dtype=torch.bfloat16,
+        attn_implementation=attn_implementation)
+    model.region_layer = kwargs.get("region_layer", model.region_layer)
+    model.config.region_layer = model.region_layer
+    if adapter_path:
+        model = PeftModel.from_pretrained(model, adapter_path)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = model.to(device)
+    model.eval()
     processor = AutoProcessor.from_pretrained(model_path)
     return model, processor
 

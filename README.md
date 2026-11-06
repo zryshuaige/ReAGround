@@ -27,6 +27,26 @@ Map the point to the original screenshot
 
 One backbone is loaded with two named adapters. Inference activates `region` for the first call and `direct` for the second. Points outside the resized crop are rejected and stored as misses rather than being mapped outside the selected region.
 
+## Experimental single-pass heads
+
+`modeling_reaground.py` also implements an untrained experimental alternative to external cropping. It adds a `Linear(2048, 1)` Region Head after LLM layer 8 and a `Linear(2048, 3)` Point Head after layer 36. Region logits are added to the point-selection scores; the other two Point Head outputs predict a continuous offset inside the selected visual-token cell.
+
+This path performs one forward pass without text generation, cropping, adapter switching, or token deletion. Its prompt places the instruction before the image so that causal visual states can attend to the instruction. It does not claim lower latency, and the new heads require training before evaluation.
+
+```bash
+# Rebuild the unchanged 8K direct sample with original GT bbox fields.
+python data/build_dataset.py --config configs/data_recipe.yaml --fmt direct
+python train/train_heads.py --config configs/train_heads.yaml --dry-run
+python train/train_heads.py --config configs/train_heads.yaml
+
+python eval/eval_screenspot.py --benchmark custom \
+  --custom-jsonl data/outputs/val.jsonl --mode heads \
+  --model models/Qwen2.5-VL-3B-Instruct --adapter outputs/single_pass_heads \
+  --out outputs/single_pass_heads_val.jsonl
+```
+
+The joint loss is point-cell cross-entropy plus within-cell Smooth L1 plus balanced region BCE. Evaluation reports final point-in-box accuracy and region/point center-cell diagnostics separately. ScreenSpot-Pro/v2 remain evaluation-only and must not be used to select the region layer or loss weights.
+
 ## Training
 
 ### 1. Direct adapter A
@@ -158,42 +178,55 @@ All values are measured point-in-box accuracy. TBD means that no result is recor
 | Run-1 A direct SFT | 20.7% | 85.8% |
 | Legacy shared-LoRA region SFT + GRPO | 5.0% (79/1581) | TBD |
 | Current independent R + frozen A | TBD | TBD |
+| Experimental single-pass heads | TBD | TBD |
 
-The legacy 5.0% result is retained as a completed negative result. The current adaptive-reward, dual-adapter method has not yet been trained or evaluated.
+The legacy 5.0% result is retained as a completed negative result. Neither the adaptive-reward dual-adapter method nor the single-pass heads have benchmark results.
 
 ## Validation
 
 ```bash
 python tests/test_core.py
 python tests/test_grpo.py
+python tests/test_heads.py
 python infer/parse.py
 ```
 
-The tests cover legacy rewards, adaptive target construction, continuous position rewards, the area-reward anti-shortcut condition, coordinate mapping, adapter switching, out-of-bounds rejection, and training-signal checks.
+The tests cover legacy rewards, adaptive target construction, continuous position rewards, coordinate mapping, adapter switching, dense-head targets and losses, continuous point decoding, and region-to-point fusion.
 
-Optional real-tokenizer checks:
+Optional real-model checks:
 
 ```bash
 REAGROUND_MODEL=models/Qwen2.5-VL-3B-Instruct \
 REAGROUND_TEST_IMAGE=/path/to/screenshot.png \
 python tests/test_core.py
+
+REAGROUND_MODEL=models/Qwen2.5-VL-3B-Instruct \
+REAGROUND_TEST_IMAGE=/path/to/screenshot.png \
+python tests/test_heads.py
 ```
+
+The head test additionally performs a real forward/backward pass and checks that PEFT saves and restores both heads with the LoRA adapter.
 
 ## Repository structure
 
 ```text
-protocol.py                    Shared prompts, resize budget, single/dual model loading
+protocol.py                    Shared prompts, resize budget, model loading
+modeling_reaground.py          Experimental single-pass Region/Point Heads
 data/build_grpo_dataset.py     Legacy and adaptive region dataset construction
 train/train_region_sft.py      Base- or adapter-initialized region SFT
 train/train_grpo.py            Legacy and adaptive region GRPO
+train/train_heads.py           Joint region and point SFT
 train/grpo_reward.py           Legacy rewards and adaptive position/coverage/area rewards
-infer/pipeline.py              Direct, shared-adapter, and dual-adapter inference
+infer/pipeline.py              Direct, dual-adapter, and single-pass inference
 eval/eval_screenspot.py        Benchmark and held-out evaluation with region diagnostics
 configs/region_r_sft.yaml      Current base-initialized R warmup
 configs/grpo_region_r.yaml     Current adaptive-reward GRPO
+configs/train_heads.yaml       Experimental single-pass head training
 scripts/train_region_r_sft.sh  Data, warmup, and held-out quality check
 scripts/train_region_r_grpo.sh GRPO and held-out evaluation
 scripts/eval_region_r.sh       Full Pro/v2 evaluation
+scripts/train_heads.sh         Head data, dry-run, SFT, and held-out evaluation
+scripts/eval_heads.sh          Single-pass Pro/v2 evaluation
 ```
 
 ## Acknowledgements
