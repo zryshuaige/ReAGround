@@ -34,6 +34,21 @@ def test_parse():
     print("parse: OK")
 
 
+def test_visual_token_budget():
+    from protocol import MAX_PIXELS, build_messages, resized_dims
+    default_dims = resized_dims(1920, 1080)
+    assert default_dims == resized_dims(1920, 1080, 1280)
+    reduced_dims = resized_dims(1920, 1080, 640)
+    assert reduced_dims[0] * reduced_dims[1] < default_dims[0] * default_dims[1]
+    direct = build_messages("direct", "click Save")
+    reduced = build_messages("direct", "click Save", 640)
+    assert direct[0]["content"][1]["max_pixels"] == MAX_PIXELS
+    assert reduced[0]["content"][1]["max_pixels"] == 640 * 28 * 28
+    assert reduced[0]["content"][0] == direct[0]["content"][0]
+    assert reduced[0]["content"][2] == direct[0]["content"][2]
+    print("visual token budget: OK (default unchanged, custom budget consistent)")
+
+
 def test_compute_loss():
     from train.train_lora import SectionalTrainer
     V, L = 50, 12
@@ -96,6 +111,7 @@ def test_tokenize_and_builders(model_path, sample_image=None):
 
 if __name__ == "__main__":
     test_parse()
+    test_visual_token_budget()
     test_compute_loss()
     model = os.environ.get("REAGROUND_MODEL")
     if model:

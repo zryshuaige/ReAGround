@@ -1,0 +1,24 @@
+{
+  "base": "models/Qwen2.5-VL-3B-Instruct",
+  "models": [
+    {
+      "id": "original",
+      "name": "原始 Qwen2.5-VL-3B",
+      "adapter": null,
+      "results": "models/base_same_as_direct_a_screenspot_results/metrics.json",
+      "visualTokens": 1280
+    },
+    {
+      "id": "direct_a",
+      "name": "Direct SFT（A）",
+      "adapter": "models/SFT_A",
+      "results": "models/SFT_A_results/metrics.json",
+      "visualTokens": 1280
+    },
+    {
+      "id": "final",
+      "name": "最终模型",
+      "adapter": "ReAGround/outputs/final"
+    }
+  ]
+}

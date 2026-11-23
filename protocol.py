@@ -53,37 +53,41 @@ def load_model(model_path, adapter_path=None, attn_implementation="sdpa"):
     return model, processor
 
 
-def resized_dims(width, height):
+def resized_dims(width, height, visual_tokens=1280):
     """smart_resize output as (resized_width, resized_height)."""
+    max_pixels = visual_tokens * PATCH_FACTOR * PATCH_FACTOR
     rh, rw = smart_resize(height, width, factor=PATCH_FACTOR,
-                          min_pixels=MIN_PIXELS, max_pixels=MAX_PIXELS)
+                          min_pixels=MIN_PIXELS, max_pixels=max_pixels)
     return rw, rh
 
 
-def build_messages(mode, instruction):
+def build_messages(mode, instruction, visual_tokens=1280):
     """One message constructor for both training and inference (never drift apart).
 
     Direct mode replicates the ZonUI-3B model card layout exactly: system text,
     image, then the query as a separate trailing text block.
     """
+    max_pixels = visual_tokens * PATCH_FACTOR * PATCH_FACTOR
     if mode == "direct":
         return [{"role": "user", "content": [
             {"type": "text", "text": PROMPT_DIRECT},
-            {"type": "image", "min_pixels": MIN_PIXELS, "max_pixels": MAX_PIXELS},
+            {"type": "image", "min_pixels": MIN_PIXELS, "max_pixels": max_pixels},
             {"type": "text", "text": instruction},
         ]}]
     return [{"role": "user", "content": [
         {"type": "text", "text": PROMPTS[mode].format(instruction=instruction)},
-        {"type": "image", "min_pixels": MIN_PIXELS, "max_pixels": MAX_PIXELS},
+        {"type": "image", "min_pixels": MIN_PIXELS, "max_pixels": max_pixels},
     ]}]
 
 
-def generate(model, processor, image, mode, instruction, max_new_tokens=64):
+def generate(model, processor, image, mode, instruction, max_new_tokens=64,
+             visual_tokens=1280):
     """Run one greedy generation on a PIL image. Returns (text, (resized_w, resized_h))."""
-    rw, rh = resized_dims(image.width, image.height)
+    rw, rh = resized_dims(image.width, image.height, visual_tokens)
     resized = image.resize((rw, rh))
     text = processor.apply_chat_template(
-        build_messages(mode, instruction), tokenize=False, add_generation_prompt=True)
+        build_messages(mode, instruction, visual_tokens),
+        tokenize=False, add_generation_prompt=True)
     inputs = processor(text=[text], images=[resized], return_tensors="pt").to(model.device)
     out = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
     gen = out[0][inputs.input_ids.shape[1]:]

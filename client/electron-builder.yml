@@ -1,0 +1,20 @@
+appId: com.reaground.client
+productName: ReAGroundClient
+asar: true
+npmRebuild: false
+directories:
+  output: release
+files:
+  - electron/**/*
+  - web-dist/**/*
+  - assets/reaground.ico
+  - package.json
+extraResources:
+  - from: dist/reaground-sidecar
+    to: sidecar
+    filter:
+      - "**/*"
+win:
+  icon: assets/reaground.ico
+  target:
+    - dir

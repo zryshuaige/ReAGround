@@ -1,0 +1,31 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #252831;
+  background: #f7f8fa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --primary: #4b67e9;
+  --primary-hover: #3d56d1;
+  --text: #252831;
+  --secondary: #687181;
+  --muted: #949ca9;
+  --border: #e5e8ee;
+  --surface: #ffffff;
+  --sidebar: #f4f5f7;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; }
+body { overflow: hidden; }
+button, textarea, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+button, input, textarea, select { outline: none; }
+button:focus-visible, textarea:focus-visible, select:focus-visible {
+  box-shadow: 0 0 0 2px rgb(75 103 233 / 22%);
+}
+::selection { background: #dce4ff; }
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cfd4dd; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #b4bcca; }

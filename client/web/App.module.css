@@ -1,0 +1,38 @@
+.app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: #fff;
+}
+
+.page {
+  height: 100%;
+}
+
+.page[hidden] {
+  display: none;
+}
+
+.globalError {
+  position: absolute;
+  z-index: 30;
+  top: 14px;
+  left: 50%;
+  max-width: 720px;
+  padding: 10px 16px;
+  transform: translateX(-50%);
+  border: 1px solid #f1c7c7;
+  border-radius: 10px;
+  background: #fff2f2;
+  color: #a53b3b;
+  font-size: 13px;
+  box-shadow: 0 8px 28px rgb(40 45 60 / 10%);
+}

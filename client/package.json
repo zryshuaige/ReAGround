@@ -1,0 +1,27 @@
+{
+  "name": "reaground-client",
+  "version": "0.2.0",
+  "private": true,
+  "description": "ReAGround local GUI grounding demo and evaluation dashboard",
+  "main": "electron/main.cjs",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm run typecheck && vite build",
+    "start": "electron .",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "electron": "44.7.0",
+    "electron-builder": "26.17.0",
+    "typescript": "6.0.3",
+    "vite": "6.4.3"
+  }
+}
